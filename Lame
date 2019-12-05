@@ -1,0 +1,57 @@
+Well ok, looks like I'm starting my writeup by doing what can be considered one of the easiest machines to hack. Gotta set that bar low. 
+Bit of a warning, since I did an oopsie and took photos instead of all copy pasting from the terminal, whoops.
+So if any of the data seems incosistent, I'm sorry about that, and I'll be sure that my next writeup isnt as bad as this one.
+
+Anyways. Lame. First step, boot up Armitage. I know most people's instincts is to boot up nmap, but I like using Armitage, 
+Especially when I know that a specific machine is CVE heavy for reasons that will become apparent soon. 
+(This writeup was written before I started using zenmap instead of armitage)
+
+After importing the host into Armitage, I run an intensive nmap scan directly from it. Because when it completes, it gives me a handy list like so:
+
+Name           Port             proto                info
+ftp            21               tcp                  vsftpd 2.3.4
+ssh            22               tcp                  Openssh 4.7p1
+netbios-ssn    139              tcp                  Samba smbd 3.x-4.x workgroup: WORKGROUP Debian 8ubuntu1 protocol 2.0
+netbios-ssn    445              tcp                  Samba smbd 3.0.20-Debian workgroup: WORKGROUP
+
+Immediately we can see that on port 21 that vsftpd 2.3.4 (An FTP server for Unix Systems) is running. 
+So naturally, lets see if there are any exploits for that particular version. I search for this through metasploits own search function
+
+msf5> search vsftpd 2.3.4
+
+Matching Modules
+================
+  Name
+  ----
+  exploit/unix/ftp/vsftpd_234_backdoor
+
+Its a match! There is a backdoor command execution exploit specifically for this particular version of vsftpd. 
+But it seems too good to be true… Let’s try it out anyways. 
+
+[*] 10.10.10.3:21 - Banner: 220 (vsFTPd 2.3.4)
+[*] 10.10.10.3:21 - USER: 331 Please specify the password.
+[*] Exploit completed, but no session was created. 
+
+Oof, it didn’t work. (To read more about the exploit used, you can find it on rapid7 
+https://www.rapid7.com/db/modules/exploit/unix/ftp/vsftpd_234_backdoor) 
+That’s not a problem though, we have other services that we found which can be used. 
+
+We can potentially use the Samba 3.0.20 as a way in. It’s running on port 445. Like I did with the vsftpd attempt. 
+I use metasploits search function to try and find an exploit that may work and end up with way too many entries than I can
+reasonably sort through.
+
+So with a bit of google-foo. I search for “Samba 3.0.20 exploit” And I’m greeted with the first result:
+
+https://www.rapid7.com/db/modules/exploit/multi/samba/usermap_script
+
+The good news for me, is that my metasploit database already has this very specific exploit. So I run it and a command shell session
+opens, which means that I'm in! After that finding the flags are simple enough.
+
+The user flag can be found in: /home/makeis/user.txt
+
+The root flag can be found in /root/root.txt
+
+And that concludes the intrusion of this machine. 
+
+Truthfully speaking, this is one of the easiest machines that hackthebox.eu has to offer. 
+It serves as a great entry point as for what to expect when it comes to what machines you may find on their platform.
